@@ -1,6 +1,9 @@
-# Heart Datathon 2021 (팀명: 마633)
+# Heart Datathon 2021 
 ## 주제 1 심초음파 데이터셋을 활용한 좌심실 분할 AI모델 개발 
-
+  
+### 팀명: 마633 (박민형)  
+### 대회 기간 : 21.11.26 ~ 21.12.07  
+  
 ### 최종모델:
 - A2C : Efficientnet-b6 + Unet++ (checkpoint ensemble) (size 768)
     - timm-efficientnet-b6-UnetPlusPlus(pre)_ep17_vloss0.0198_vdsc0.9449_vji0.8977_all.pth
