@@ -4,6 +4,18 @@ import random
 import os
 import yaml
 
+
+# seed 고정
+def seed_everything(seed: int = 21):
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)  # type: ignore
+    torch.cuda.manual_seed_all(seed) # if use multi-GPU
+    torch.backends.cudnn.deterministic = True  # type: ignore
+    torch.backends.cudnn.benchmark = True  # type: ignore
+
 def set_gpu(*args):
     global device
     devices = ','.join(list(map(str, args)))
@@ -19,19 +31,32 @@ def set_gpu(*args):
     print('Current cuda device:', torch.cuda.current_device())  # 출력결과: 2 (GPU #2 의미)
     print(torch.cuda.get_device_name(0))
 
-# seed 고정
-def seed_everything(seed: int = 21):
-    random.seed(seed)
-    np.random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)  # type: ignore
-    torch.cuda.manual_seed_all(seed) # if use multi-GPU
-    torch.backends.cudnn.deterministic = True  # type: ignore
-    torch.backends.cudnn.benchmark = True  # type: ignore
-    
-
 def load_yaml(path):
     with open(path, 'r') as f:
         return yaml.load(f, Loader=yaml.FullLoader)
 
+def make_savedir(saved_dir):
+    directory = saved_dir
+    stack = []
+    while directory!='.':
+        stack.append(directory)
+        directory = os.path.dirname(directory)
+
+    while stack:
+        subdir = stack.pop()
+        if not os.path.isdir(subdir):
+            os.mkdir(subdir)
+
+def make_dir(save_dir):
+    if not os.path.isdir(save_dir):                                                           
+        os.mkdir(save_dir)
+
+def printProgress (iteration, total, prefix = '', suffix = '', decimals = 1, barLength = 100): 
+    formatStr = "{0:." + str(decimals) + "f}" 
+    percent = formatStr.format(100 * (iteration / float(total))) 
+    filledLength = int(round(barLength * iteration / float(total))) 
+    bar = '#' * filledLength + '-' * (barLength - filledLength) 
+    sys.stdout.write('\r%s |%s| %s%s %s' % (prefix, bar, percent, '%', suffix)), 
+    if iteration == total: 
+        sys.stdout.write('\n') 
+    sys.stdout.flush()

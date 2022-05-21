@@ -1,0 +1,84 @@
+SEED:
+  random_seed: 21
+
+DATALOADER:
+  num_workers: 0
+
+DEBUG:
+  debug: False
+
+PREPROCESSING:
+  img_size: 512
+  max_len: 275
+  print_freq: 1000
+  freeze_epo: 0
+  warmup_epo: 1
+  cosine_epo: 19
+  warmup_factor: 10
+  scheduler: 'GradualWarmupSchedulerV2'
+  factor: 0.2
+  patience: 4
+  eps: 1e-6
+  T_max: 4
+  T_0: 4
+  encoder_lr: 0.00003
+  min_lr: 0.000001
+  batch_size: 16
+  weight_decay: 0.000001
+  gradient_accumulation_steps: 1
+  max_grad_norm: 5
+  dropout: 0.5
+  n_fold: 2
+  trn_fold: [0, 1]
+  preprocessing: True
+  apex: False
+  load_state: False
+  npixel_threshold: 20000
+  npixel_for_iou: 2000
+  iou_threshold : 0.80
+
+
+TRAIN:
+  batch_size : 12
+  num_epochs : 1000
+  segmentation_classes : ['background', 'heart']
+  es_patience : 5
+  es_min_delta : 1e-5
+  val_every : 1
+  num_epochs : 1000
+  num_to_log : 10
+  max_len: 275
+  print_freq: 100
+  encoder_type: 'timm-efficientnet-b5'
+  decoder_type: 'UnetPlusPlus'
+  freeze_epo: 0
+  warmup_epo: 1
+  cosine_epo: 19
+  warmup_factor: 10
+  scheduler: 'GradualWarmupSchedulerV2'
+  factor: 0.2
+  patience: 4
+  eps: 1e-6
+  T_max: 4
+  T_0: 4
+  encoder_lr: 0.00003
+  min_lr: 0.000001
+  batch_size: 6
+  weight_decay: 0.000001
+  gradient_accumulation_steps: 1
+  max_grad_norm: 5
+  dropout: 0.5
+  n_fold: 1
+  trn_fold: [0]
+  train: True
+  apex: True
+  load_state: False
+  self_cutmix: True
+  cutmix_threshold: 0.1
+  coloring: True
+  coloring_threshold: 0.1
+  loss_smooth_factor: 0.01
+  pretrained : True
+  prospective_filtering : False
+  augmentation : True
+  break_epoch: 14
