@@ -69,7 +69,6 @@
 
 ### Conda 가상환경 생성
 ```
-conda create --name m633 python=3.7
 conda env create --file m633_environment.yml
 conda activate m633
 ```
@@ -77,21 +76,25 @@ conda activate m633
 ### 학습 (Train) : 
 - Train set을 학습 및 학습모델 저장 (제출모델 재현가능)
 ```
-python a2c_train.py
-python a4c_train.py
+python train.py --task [a2c | a4c]
 ```
 
 ### 검증 (Validation) : 
 - Validation Set에 대한 Predictions 생성 (val_pred 디렉토리에 저장)
 - 생성된 Predictions와 정답을 통해 DSC, JI Score 출력
 ```
-python a2c_validation.py
-python a4c_validation.py
+python validation.py --task [a2c | a4c]
 ```
 
 ### 테스트 (Test) : 
 - Test Set에 대한 Predictions 생성 (test_pred 디렉토리에 저장)
 ```
-python a2c_test.py
-python a4c_test.py
+python test.py --task [a2c | a4c]
 ```
+
+### [Updates]
+- type hint, docstring 추가
+- train.py 에 wandb integration 추가 (22.05.21)
+- a2c, a4c 별 train, validation, test 파일 병합 (22.05.21)
+
+
