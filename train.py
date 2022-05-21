@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, CosineAnnealingLR, ReduceLROnPlateau
 import numpy as np
 import pandas as pd
+import wandb
 import os
 from argparse import ArgumentParser
 import warnings 
@@ -14,9 +15,11 @@ from datasets import CustomDataset, make_data_df, collate_fn
 from model import Encoder
 from callbacks import GradualWarmupSchedulerV2, EarlyStoppingScore
 from metrics import m_dsc_bin, m_ji_bin
+from mywb import labels, wb_mask
 
 # Fix Seed
-seed_everything(21) 
+SEED = 21 # 2021
+seed_everything(SEED) 
 
 # Choose GPUs
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -79,10 +82,34 @@ def save_model(model, saved_dir, file_name):
     ckpt_path = os.path.join(saved_dir, file_name)
     torch.save(checkpoint, ckpt_path)
 
+def get_wb_config(train_dataset, val_dataset, test_dataset, criterion, optimizer, kfolds=False):
+    config = {'framework': 'smp', 
+            'img_size': IMGSIZE, 
+            'transforms':'\n'.join(map(str, train_transform.transforms.transforms)),
+            'batch_size':BATCH_SIZE,
+            'epochs': NUM_EPOCHS, 
+            'model':f'{ENCODER_TYPE}-{DECODER_TYPE}',
+            'pretrained':'True', 
+            'loss': criterion.__class__.__name__,
+            'optimizer': optimizer.__class__.__name__,
+            'learning_rate' : PRE_ENCODER_LR,
+            'weight_decay':PRE_WEIGHT_DECAY, 
+            'early_stopping_patience': ES_PATIENCE, 
+            'early_stopping_mindelta': ES_MIN_DELTA,
+            'random_seed': SEED,
+            'num_train': len(train_dataset)*0.8 if kfolds else len(train_dataset),
+            'num_val': len(val_dataset)*0.2 if kfolds else len(val_dataset),
+            'num_test' : len(test_dataset),
+            }
+    return config
+
 def train(num_epochs, model, train_loader, val_loader, criterion, optimizer, scheduler, saved_dir, file_postfix, val_every, DEVICE):
     print(f'Start training..')
     best_val_loss = 9999999
     early_stopping = EarlyStoppingScore(patience=ES_PATIENCE, min_delta=ES_MIN_DELTA)
+
+    example_ct = 0
+
     for epoch in range(num_epochs):
         model.train()
         for step, (images, masks, fnames) in enumerate(train_loader):
@@ -118,19 +145,31 @@ def train(num_epochs, model, train_loader, val_loader, criterion, optimizer, sch
             if (step + 1) % 10 == 0:
                 print(f'Epoch [{epoch+1}/{num_epochs}], Step [{step+1}/{len(train_loader)}], \
                         Loss: {round(loss.item(),4)}, mDSC: {round(mdsc,4)}, mJI: {round(mji, 4)}')
+            example_ct +=  len(images)
+            wandb.log({ "Examples": [wandb.Image(image.permute([1,2,0]).numpy(), caption=fname) for image, fname in zip(images.detach().cpu(), fnames)],
+                        "Loss" : loss.item(), "mDSC":mdsc, "mJI":mji}, step=example_ct)
             
         scheduler.step(epoch)
         
         # validation 주기에 따른 loss 출력 및 best model 저장
         if (epoch + 1) % val_every == 0:
-            val_loss, vdsc, vji = validation(epoch + 1, model, val_loader, criterion, DEVICE)
-            
+            val_loss, vdsc, vji, mask_list = validation(epoch + 1, model, val_loader, criterion, DEVICE)
+            wandb.log({ "predictions" : mask_list,
+                        'Epoch': epoch+1,
+                        "Val Loss": val_loss,
+                        "val_mDSC":vdsc,
+                        "val_mJI":vji,
+                        # "Test Loss": test_loss,
+                            })
+
             if val_loss < best_val_loss:
                 print(f"Best performance at epoch: {epoch + 1}")
                 print(f"Save model in {saved_dir}")
                 best_val_loss = val_loss
                 fname = f'{ENCODER_TYPE}-{DECODER_TYPE}(pre)_ep{epoch+1}_vloss{round(val_loss.item(),4)}_vdsc{round(vdsc, 4)}_vji{round(vji,4)}'+file_postfix+'.pth'
                 save_model(model, saved_dir, fname)
+                wandb.alert(title="Best", text=f"dsc({round(vdsc, 4)}),ji({round(vji, 4)})",)
+
             elif vji >= 0.7: # ckpt 앙상블용
                 save_model(model, saved_dir, fname)
                      
@@ -139,6 +178,7 @@ def train(num_epochs, model, train_loader, val_loader, criterion, optimizer, sch
                 break
     
     best_val_loss, best_val_dsc, best_val_ji = best_val_loss.detach().cpu().item(), vdsc, vji
+    wandb.alert(title="Finish", text=f"dsc({round(best_val_dsc, 4)}),ji({round(best_val_ji, 4)})",)
     return best_val_loss, best_val_dsc, best_val_ji
 
 def validation(epoch, model, data_loader, criterion, DEVICE):
@@ -183,7 +223,14 @@ def validation(epoch, model, data_loader, criterion, DEVICE):
             ji+=sum_ji
             data_cnt+=outputs.shape[0]
             if step==0:
+                mask_list = []
                 images = images.detach().cpu().numpy()
+
+                for image, mask, path, output in list(zip(images, masks, fnames, outputs))[:NUM_TO_LOG]:
+                    bg_image = (image*255).transpose([1,2,0]).astype(np.uint8) # (3,W,H) -> (W,H,3)
+                    prediction_mask = output.astype(np.uint8) # (W,H)
+                    true_mask = mask.astype(np.uint8)
+                    mask_list.append(wb_mask(bg_image, prediction_mask, true_mask, path))
 
         mdsc = dsc/data_cnt
         mji = ji/data_cnt
@@ -191,7 +238,7 @@ def validation(epoch, model, data_loader, criterion, DEVICE):
         print(f'Validation #{epoch}  Average Loss: {round(avg_loss.item(), 4)}, mDSC : {round(mdsc, 4)}, \
                 mJI: {round(mji, 4)}')
         
-    return avg_loss, mdsc, mji
+    return avg_loss, mdsc, mji, mask_list
 
 def save_train_all_res_df(args, score):
     df = pd.DataFrame(score).T.reset_index()
@@ -246,16 +293,21 @@ def main(args):
     criterion = nn.BCEWithLogitsLoss()
 
     score = {}
-
     saved_dir = f'./saved/{args.task}'
     file_postfix = f'_all'
+
+    config = get_wb_config(train_dataset, test_dataset, test_dataset, criterion, optimizer, kfolds=False)
+    wandb.init(project = f"HDAI2021", config=config, reinit=True) # HeartDatathonAI 2021
+    wandb.run.name = f"{args.task}" # a2c or a4c
+    wandb.run.save()
+    wandb.watch(model, log="all")
 
     best_val_loss, best_val_dsc, best_val_ji = train(NUM_EPOCHS, model, 
                                                 train_loader, test_loader,
                                                 criterion, optimizer, scheduler, 
                                                 saved_dir, file_postfix, 
                                                 VAL_EVERY, DEVICE)
-
+    
     score[f'{args.task}_loss'] = [best_val_loss]
     score[f'{args.task}_dsc'] = [best_val_dsc]
     score[f'{args.task}_ji'] = [best_val_ji]
@@ -263,6 +315,8 @@ def main(args):
     # Result (DataFrame)
     res = save_train_all_res_df(args, score)
     print(res)
+
+    wandb.run.finish()
     return
 
 if __name__ == '__main__':
