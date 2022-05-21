@@ -1,5 +1,5 @@
 SEED:
-  random_seed: 42
+  random_seed: 21
 
 DATALOADER:
   num_workers: 0
@@ -8,11 +8,9 @@ DEBUG:
   debug: False
 
 PREPROCESSING:
-  img_size: 512
+  img_size: 768
   max_len: 275
   print_freq: 1000
-  encoder_type: 'efficientnet-b0'
-  decoder_type: 'Unet'
   size: 512
   freeze_epo: 0
   warmup_epo: 1
@@ -42,12 +40,18 @@ PREPROCESSING:
 
 
 TRAIN:
-  img_size: 672
+  batch_size : 12
+  num_epochs : 1000
+  segmentation_classes : ['background', 'heart']
+  es_patience: 5
+  es_min_delta: 1e-5
+  val_every : 1
+  num_epochs : 1000
+  num_to_log : 10
   max_len: 275
   print_freq: 100
-  encoder_type: 'timm-efficientnet-b8'
+  encoder_type: 'timm-efficientnet-b6'
   decoder_type: 'UnetPlusPlus'
-  size: 512
   freeze_epo: 0
   warmup_epo: 1
   cosine_epo: 19
@@ -79,16 +83,3 @@ TRAIN:
   prospective_filtering : False
   augmentation : True
   break_epoch: 14
-
-INFERENCE:
-  epoch_list: [13, 11, 12]
-  mask_threshold: 14000
-  epsilon: 0.555
-  polygon_approx_threshold: 50
-
-LOG:
-  log_day: '0630'
-  version: 'v1-1'
-  light: 'light'
-  data_type: 'hair'
-  comment: 'final'
